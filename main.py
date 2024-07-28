@@ -5,6 +5,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import PIthon
+import saDefs
 
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
@@ -32,7 +33,12 @@ if __name__ == '__main__':
 
     PIthon.connect_to_Server('ec2-54-200-148-162.us-west-2.compute.amazonaws.com')
     #PIthon.get_tag_snapshot('sinusoid')
-    PIthon.get_tags()
+    #defPoint = PIthon.get_def_point()
+    #print(defPoint)
+    points = PIthon.get_points()
+    for pt in points:
+        saDefs.update_defaults(pt)
+        print(pt)
 
     simple_histogram()
 

@@ -11,6 +11,9 @@ from OSIsoft.AF.Time import *
 
 from System import Array
 
+import saDefs
+import pandas as pd
+
 def connect_to_Server(serverName):
     piServers = PIServers()
     global piServer
@@ -25,53 +28,45 @@ def get_tag_snapshot(tagname):
     lastData = tag.Snapshot()
     return lastData.Value, lastData.Timestamp
 
-def get_tags():
-    attrs = [
-        PICommonPointAttributes.Archiving,
-        PICommonPointAttributes.Compressing,
-        PICommonPointAttributes.CompressionDeviation,
-        PICommonPointAttributes.CompressionMaximum,
-        PICommonPointAttributes.CompressionMinimum,
-        PICommonPointAttributes.CompressionPercentage,
-        PICommonPointAttributes.Descriptor,
-        PICommonPointAttributes.EngineeringUnits,
-        PICommonPointAttributes.ExceptionDeviation,
-        PICommonPointAttributes.ExceptionMaximum,
-        PICommonPointAttributes.ExceptionMinimum,
-        PICommonPointAttributes.ExceptionPercentage,
-        PICommonPointAttributes.ExtendedDescriptor,
-        PICommonPointAttributes.InstrumentTag,
-        PICommonPointAttributes.Location1,
-        PICommonPointAttributes.Location4,
-        PICommonPointAttributes.PointID,
-        PICommonPointAttributes.PointSource,
-        PICommonPointAttributes.PointType,
-        PICommonPointAttributes.SourcePointID,
-        PICommonPointAttributes.Span,
-        PICommonPointAttributes.Step,
-        PICommonPointAttributes.Tag,
-        PICommonPointAttributes.Zero,
-    ]
+def get_def_point() -> list:
+    tag = 'DefaultClassicTag'
+    query = PIPointQuery(PICommonPointAttributes.Tag, AFSearchOperator.Equal, tag)
+    defPt = find_points(query)
+    return defPt
 
-
-
+def get_points():
     ptSource = 'R'
     ptSourceQuery = PIPointQuery(PICommonPointAttributes.PointSource, AFSearchOperator.Equal, ptSource )
-    q2 = {ptSourceQuery,}
-    aToL2 = {PICommonPointAttributes.Archiving,}
-    attributesToLoad = Array[str](len(attrs))
+    return find_points(ptSourceQuery)
+
+def find_points(query: PIPointQuery) -> list:
+    ptSource = 'R'
+    ptSourceQuery = PIPointQuery(PICommonPointAttributes.PointSource, AFSearchOperator.Equal, ptSource )
+    attributesToLoad = Array[str](len(saDefs.attrs))
     i = 0
-    for attr in attrs:
+    for attr in saDefs.attrs:
         attributesToLoad[i] = attr
         i = i + 1
-    #attributesToLoad.Add(PICommonPointAttributes.Archiving)
     queries = Array[PIPointQuery](1)
-    queries[0] = ptSourceQuery
+    queries[0] = query
 
     points = PIPoint.FindPIPoints(piServer, queries, attributesToLoad)
+    listOfPts = convert_pts_to_df(points, saDefs.attrs)
+    return listOfPts
+
+
+def convert_pts_to_df(points: Array[PIPoint], attrs: list) -> list:
+    listOfPts = list()
     for pt in points:
-        print(pt)
-        for attr in attributesToLoad:
-            attrValue = pt.GetAttribute(attr)
-            print( f'\t{attr}:\t\t{attrValue}')
-    return points
+        ptDict = convert_pt_to_dict(pt, saDefs.attrs)
+        listOfPts.append(ptDict)
+    return listOfPts
+
+def convert_pt_to_dict(pt: PIPoint, attrs: list) -> dict:
+    print(pt)
+    retDict = dict()
+    for attr in attrs:
+        attrValue = pt.GetAttribute(attr)
+        retDict[attr] = attrValue
+    return retDict
+
