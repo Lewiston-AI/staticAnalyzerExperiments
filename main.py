@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import PIthon
 import saDefs
+import saDF
 
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
@@ -30,6 +31,7 @@ def simple_histogram():
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     print_hi('Starting Static Analyzer Experiments')
+    simple_histogram()
 
     PIthon.connect_to_Server('ec2-54-200-148-162.us-west-2.compute.amazonaws.com')
     #PIthon.get_tag_snapshot('sinusoid')
@@ -39,7 +41,9 @@ if __name__ == '__main__':
     for pt in points:
         saDefs.update_defaults(pt)
         print(pt)
-
+    df = pd.DataFrame(points)
+    print(df)
+    saDF.sa_histogram(df, 'snapshot DT')
     simple_histogram()
 
     print("done")

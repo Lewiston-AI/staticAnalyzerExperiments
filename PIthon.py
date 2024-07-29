@@ -52,13 +52,21 @@ def find_points(query: PIPointQuery) -> list:
 
     points = PIPoint.FindPIPoints(piServer, queries, attributesToLoad)
     listOfPts = convert_pts_to_df(points, saDefs.attrs)
+
     return listOfPts
 
 
 def convert_pts_to_df(points: Array[PIPoint], attrs: list) -> list:
     listOfPts = list()
+    currentTime = AFTime('*')
     for pt in points:
+        snapShot = pt.Snapshot()
         ptDict = convert_pt_to_dict(pt, saDefs.attrs)
+        ptDict['snapshot'] = snapShot.Value
+        ptDict['snapshot time'] = snapShot.Timestamp.UtcSeconds
+        ptDict['snapshot IsGood'] = snapShot.IsGood
+        dt = int(currentTime.UtcSeconds - snapShot.Timestamp.UtcSeconds)
+        ptDict['snapshot DT'] = dt
         listOfPts.append(ptDict)
     return listOfPts
 
