@@ -3,10 +3,11 @@
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import pandas as pd
-import matplotlib.pyplot as plt
 import PIthon
 import saDefs
 import saDF
+import saArcSummary
+import plotly.express as px
 
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
@@ -19,32 +20,39 @@ def simple_histogram():
         'tags': ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7', 'tag8', 'tag9', 'tag10', 'tag11', 'tag12',
                   'tag13', 'tag14', 'tag15', 'tag16', 'tag17', 'tag18', 'tag19']
     }
-    df = pd.DataFrame(data)
-    print(df)
-    plt.hist(df['values'], bins=10, color='orange', alpha=0.7, edgecolor='black', range=(15, 70), cumulative=False, density=True)
-    plt.title('Histogram of Values')
-    plt.xlabel('Value')
-    plt.ylabel('Frequency')
-    plt.show()
+    fig = px.histogram(data,x='values')
+    fig.show()
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     print_hi('Starting Static Analyzer Experiments')
-    simple_histogram()
+    #simple_histogram()
 
     PIthon.connect_to_Server('ec2-54-200-148-162.us-west-2.compute.amazonaws.com')
     #PIthon.get_tag_snapshot('sinusoid')
     #defPoint = PIthon.get_def_point()
     #print(defPoint)
-    points = PIthon.get_points()
-    for pt in points:
+    reports = PIthon.get_reports1()
+    for pt in reports[0]:
         saDefs.update_defaults(pt)
-        print(pt)
-    df = pd.DataFrame(points)
+    i = 0
+    for key,value in reports[1].items():
+        print(key)
+        if len(value) <= 0:
+            print("no data")
+            continue
+        df = pd.DataFrame(value)
+        saArcSummary.add_arc_summary(df, reports[0][i])
+        i = i + 1
+    df = pd.DataFrame(reports[0])
     print(df)
-    saDF.sa_histogram(df, 'snapshot DT')
-    simple_histogram()
+    saDF.sa_histogram(df, 'snapshot ln(DT)', 25)
+    saDF.sa_histogram(df, 'normalized minDV', 50)
+    saDF.sa_histogram(df, 'ln(minDT)', 50)
+    saDF.sa_histogram(df, 'minDV', 200)
+    saDF.sa_histogram(df, 'minDT', 200)
+    saDF.sa_save_csv(df, '.\channels.csv')
 
     print("done")
 
