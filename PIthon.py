@@ -10,11 +10,13 @@ from OSIsoft.AF.Data import *
 from OSIsoft.AF.Time import *
 
 from System import Array
+from System import Type
 
 import numpy as np
 import saDefs
 import pandas as pd
 import math
+import time
 
 def connect_to_Server(serverName):
     piServers = PIServers()
@@ -37,6 +39,7 @@ def get_def_point() -> list:
     return defPt
 
 def get_reports1() -> (list, list):
+    print('get_reports1')
     ptSource1 = 'R'
     ptSourceQuery1 = PIPointQuery(PICommonPointAttributes.PointSource, AFSearchOperator.Equal, ptSource1 )
     ptSource2 = '9'
@@ -54,12 +57,14 @@ def get_reports1() -> (list, list):
     return (metaDatasReport, q1[1])
 
 def get_reports2():
+    print('get_reports2')
     tag = '*'
     tagQuery1 = PIPointQuery(PICommonPointAttributes.Tag, AFSearchOperator.Equal, tag )
     q1 = build_points_report([tagQuery1,])
     return q1
 
 def get_reports3() -> (list, list):
+    print('get_reports3')
     ptSource1 = 'R'
     ptSourceQuery1 = PIPointQuery(PICommonPointAttributes.PointSource, AFSearchOperator.Equal, ptSource1 )
     q1 = build_points_reports([ptSourceQuery1])
@@ -68,10 +73,12 @@ def get_reports3() -> (list, list):
     return q1
 
 def print_tags(l: list):
+    print('print_tags')
     for p in l:
         print(f'\"{p[PICommonPointAttributes.Tag]}\",')
 
 def build_points_reports(query: [PIPointQuery]) -> (list, dict):
+    print('build_points_reports')
     ptSource = 'R'
     ptSourceQuery = PIPointQuery(PICommonPointAttributes.PointSource, AFSearchOperator.Equal, ptSource )
     attributesToLoad = Array[str](len(saDefs.attrs))
@@ -111,43 +118,116 @@ def points_archive_report (points: Array[PIPoint]) -> dict:
     dictOfTables = dict()
     for pt in points:
         tag = pt.GetAttribute(PICommonPointAttributes.Tag)
-        print(f'RecordedValues Error: {tag}')
+        print(f'Getting RecordedValues for: {tag}')
         try:
+            st1 = time.time()
             values = pt.RecordedValues(timeRange, AFBoundaryType.Outside, '', False)
-            table = archive_values_to_list(values, pt.GetAttribute(PICommonPointAttributes.Span))
+            et1 = time.time()
+            st2 = et1
+            ptType = pt.GetAttribute(PICommonPointAttributes.PointType)
+            table = archive_values_to_list1(values, ptType, pt.GetAttribute(PICommonPointAttributes.Span))
+            et2 = time.time()
             dictOfTables[tag] = table
-        except:
-            print(f'\tRecordedValues Error: {tag}')
+
+            print(f'Got RecordedValues for: {tag} in {et1 - st1} sec. Converted in {et2 - st2} {values.Count}')
+        except Exception as ex:
+            print(f'\tRecordedValues Error: {tag} {ex}')
             dictOfTables[tag] = list() # empty list means unable to get data
 
     return dictOfTables
 
-def archive_values_to_list(values: AFValues, span: float) -> list():
+def is_numeric(val: PIPointType):
+    if (val == PIPointType.Float32) or (val == PIPointType.Float64) or (val == PIPointType.Int16) or (val == PIPointType.Int32):
+        return True
+    else:
+        return False
+
+def archive_values_to_list1(values: AFValues, ptType: PIPointType, span: float) -> list():
     table = list() # list of dictionaries (dict for each value)
-    prevVal: AFValue = None
-    for val in values:
-        row = dict()
-        row['value'] = val.Value
-        row['time'] = val.Timestamp.UtcSeconds
-        row['isgood'] = val.IsGood
-        if prevVal != None:
-            dt = int(val.Timestamp.UtcSeconds - prevVal.Timestamp.UtcSeconds)
-            row['DT'] = dt
-            if val.IsGood and prevVal.IsGood:
-                dv = np.abs(prevVal.Value - val.Value)
-                row['DV'] = dv
-                row['DV/Span'] = dv / (span)
+    try:
+        isNum = is_numeric(ptType)
+        prevVal: AFValue = None
+        for val in values:
+            try:
+                row = dict()
+                row['value'] = val.Value
+                row['time'] = val.Timestamp.UtcSeconds
+                row['isgood'] = val.IsGood
+                if prevVal != None:
+                    dt = int(val.Timestamp.UtcSeconds - prevVal.Timestamp.UtcSeconds)
+                    row['DT'] = dt
+                    if val.IsGood and prevVal.IsGood and isNum:
+                        dv = np.abs(prevVal.Value - val.Value)
+                        row['DV'] = dv
+                        row['DV/Span'] = dv / (span)
+                    else:
+                        row['DV'] = -1.0               # -1.0 that we can remove later, but make sure the table does not have missing fields
+                        row['DV/Span'] = -1.0
+                else:
+                    row['DT'] = -1.0
+                    row['DV'] = -1.0  # -1.0 that we can remove later, but make sure the table does not have missing fields
+                    row['DV/Span'] = -1.0
+                prevVal = val
+                table.append(row)
+            except Exception as ex:
+                print(f'Converting AFValues error {ex}')
+    except Exception as ex:
+        print (f'Converting AFValues error {ex}')
+    return table
+
+def archive_values_to_list2(afValues: AFValues, ptType: PIPointType, span: float) -> list():
+    try:
+        ct = afValues.Count
+        keys = ['value', 'time', 'isgood', 'DT', 'DV', 'DV/SPAN']
+        #values = np.empty(ct, dtype=np.double)
+        values = list()
+        #times = np.empty(ct, dtype=np.double)
+        times  = list()
+        #isgoods = np.empty(ct, dtype=np.bool)
+        isgoods = list()
+        #dts = np.empty(ct, dtype=np.double)
+        dts = list()
+        #dvs = np.empty(ct, dtype=np.double)
+        dvs = list()
+        #dvspans = np.empty(ct, dtype=np.double)
+        dvspans = list()
+        isNum = is_numeric(ptType)
+        prevVal: AFValue = None
+        i = 0
+        for val in afValues:
+            #if val.IsGood:
+            values.append(val.Value)
+            #else:
+            #    if i > 0:
+            #        values[i] = values[1] # this does not matter except for later zero and span calcs
+            #    else:
+            #        values[i] = 0.0 # this could throw off zero/span calcs, we can get fancier for a replacement later
+            times.append(val.Timestamp.UtcSeconds)
+            isgoods.append(val.IsGood)
+            if prevVal != None:
+                dt = int(val.Timestamp.UtcSeconds - prevVal.Timestamp.UtcSeconds)
+                dts.append(dt)
+                if val.IsGood and prevVal.IsGood and isNum:
+                    dv = np.abs(prevVal.Value - val.Value)
+                    dvs.append(dv)
+                    dvspans.append(dv / (span))
+                else:
+                    dvs.append(-1.0)              # -1.0 that we can remove later, but make sure the table does not have missing fields
+                    dvspans.append(-1.0)
             else:
-                row['DV'] = -1.0
-                row['DV/Span'] = -1.0
-        else:
-            row['DT'] = -1.0
-        prevVal = val
-        table.append(row)
+                dts.append(-1.0)  # TODO:
+                dvs.append(-1.0)
+                dvspans.append(-1.0)
+            prevVal = val
+            i = i + 1
+    except Exception as ex:
+        print (f'Converting AFValues error {ex}')
+    parallelArrays = [values, times, isgoods, dts, dvs, dvspans]
+    table = [dict(zip(keys, parallelArrays)) for parallelArrays in zip(*parallelArrays)]
     return table
 
 def points_meta_data_report(points: Array[PIPoint], attrs: list) -> list:
-    listOfPts = list()
+    listOfPts = []
     currentTime = AFTime('*')
     for pt in points:
         #snapShot = pt.Snapshot()
@@ -160,9 +240,9 @@ def points_meta_data_report(points: Array[PIPoint], attrs: list) -> list:
         ptDict['snapshot DT'] = dt
         try:
             ptDict['snapshot ln(DT)'] = np.log(dt)  # np.log is the natural log
-        except:
+        except Exception as ex:
             ptDict['snapshot ln(DT)'] = -1
-            print(f"unsupported dt {dt}")
+            print(f"unsupported dt {dt} {ex}")
         listOfPts.append(ptDict)
     return listOfPts
 
@@ -173,7 +253,8 @@ def convert_pt_to_dict(pt: PIPoint, attrs: list) -> dict:
         try:
             attrValue = pt.GetAttribute(attr)
             retDict[attr] = attrValue
-        except:
+        except Exception as ex:
+            print(f'converstion error {ex}')
             retDict[attr] = ''
     return retDict
 
